@@ -1,8 +1,13 @@
 # 🫎 Moose Tracker
 
+**Live at: https://spookytoads.github.io/Cabin-App/**
+
 The family cabin, all in one place — a phone-first web app for the shared calendar,
 work orders, supplies, opening/closing procedures, news, and a private
 owner-only maintenance & cost log.
+
+> Hosted on GitHub Pages straight from this branch (Settings → Pages → Deploy from a
+> branch, `/ (root)`). Every push auto-redeploys. `.nojekyll` makes Pages serve files as-is.
 
 Built as a plain static web app (no build step) backed by [Supabase](https://supabase.com)
 for logins and data.
