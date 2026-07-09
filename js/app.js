@@ -201,33 +201,55 @@
   }
 
   /* ---------------- onboarding ---------------- */
-  function onboardingModal() {
+  async function onboardingModal() {
+    // Offer the existing household names to pick from (drop combined shared
+    // weeks); picking your household means your stays are yours to edit.
+    let names = [];
+    try {
+      const { data } = await sb.from("bookings").select("guest_name");
+      names = [...new Set((data || []).map((b) => (b.guest_name || "").trim()).filter((n) => n && !n.includes(",")))].sort((a, b) => a.localeCompare(b));
+    } catch (e) {}
+    const options = ['<option value="">Choose your name…</option>']
+      .concat(names.map((n) => '<option value="' + esc(n) + '">' + esc(n) + "</option>"))
+      .concat(['<option value="__other__">➕ Add a new name…</option>']).join("");
     openModal(
       '<div class="modal-head"><h2>Welcome to Moose Tracker! 🫎</h2></div>' +
-      '<p class="muted">Let\'s get you set up. This only takes a second.</p>' +
-      '<div class="field"><label>What should the family call you?</label>' +
-        '<input id="ob-name" placeholder="e.g. Aunt Sue" autocomplete="name" /></div>' +
-      '<div class="row" style="gap:12px;align-items:center;margin-top:4px">' +
+      '<p class="muted">Pick the name you book the cabin under — that way your stays are yours to edit and get your color.</p>' +
+      '<div class="field"><label>Which name is yours?</label><select id="ob-select">' + options + "</select></div>" +
+      '<div class="field hidden" id="ob-other-wrap"><label>Your name</label><input id="ob-name" placeholder="e.g. Aunt Sue" autocomplete="name" /></div>' +
+      '<div class="row" style="gap:12px;align-items:center;margin-top:2px">' +
         '<span id="ob-swatch" class="color-chip lg" style="background:#47563F"></span>' +
-        '<div class="small muted">Your name has its own color — this is how your stays show up on the calendar.</div></div>' +
+        '<div class="small muted">This is your color on the calendar. You can change your name or color later in Account.</div></div>' +
       '<div class="actions"><button class="btn block" data-act="save-onboarding">Let\'s go</button></div>',
       "onboarding", true
     );
-    const inp = document.getElementById("ob-name");
+    const sel = document.getElementById("ob-select");
+    const wrap = document.getElementById("ob-other-wrap");
+    const other = document.getElementById("ob-name");
+    const effective = () => (sel.value === "__other__" ? (other.value || "").trim() : sel.value);
     const paint = () => {
-      const v = inp.value.trim();
+      const v = effective();
       const sw = document.getElementById("ob-swatch");
       const c = colorForName(v);
       sw.style.background = c; sw.style.color = textOn(c);
       sw.textContent = v ? initialsOf(v) : "";
     };
-    inp.addEventListener("input", paint);
-    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") saveOnboarding(); });
-    inp.focus();
+    sel.addEventListener("change", () => {
+      const isOther = sel.value === "__other__";
+      wrap.classList.toggle("hidden", !isOther);
+      if (isOther) other.focus();
+      paint();
+    });
+    other.addEventListener("input", paint);
+    other.addEventListener("keydown", (e) => { if (e.key === "Enter") saveOnboarding(); });
   }
   async function saveOnboarding() {
-    const name = (document.getElementById("ob-name").value || "").trim();
-    if (!name) { toast("Please enter your name.", "err"); return; }
+    const sel = document.getElementById("ob-select");
+    const other = document.getElementById("ob-name");
+    let name = sel && sel.value === "__other__"
+      ? (other ? (other.value || "").trim() : "")
+      : (sel ? sel.value.trim() : "");
+    if (!name) { toast("Please pick or add your name.", "err"); return; }
     const btn = document.querySelector('[data-act="save-onboarding"]');
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
     const { error } = await sb.from("profiles").update({ full_name: name }).eq("id", state.user.id);
