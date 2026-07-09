@@ -70,15 +70,25 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3200);
   }
-  function openModal(html, extraClass) {
+  function openModal(html, extraClass, sticky) {
     closeModal();
     const ov = document.createElement("div");
     ov.className = "overlay";
     ov.id = "overlay";
     ov.innerHTML = '<div class="modal ' + (extraClass || "") + '">' + html + "</div>";
-    ov.addEventListener("click", (e) => { if (e.target === ov) closeModal(); });
+    if (!sticky) ov.addEventListener("click", (e) => { if (e.target === ov) closeModal(); });
     document.body.appendChild(ov);
     return ov;
+  }
+
+  // 12-color cabin palette for per-person booking colors (kept in sync with the DB).
+  const PALETTE = ["#4E5D46","#B85446","#2C3E52","#7A5540","#8A6D1F","#3E6B5A","#7C4A63","#A85A32","#556B78","#6B7A3A","#9E4B4B","#4A6E8A"];
+  function needsOnboarding() {
+    const p = state.profile || {};
+    const name = (p.full_name || "").trim();
+    if (!name) return true;
+    // Also prompt if the name still looks like the auto-generated email prefix.
+    return name.toLowerCase() === (state.user.email || "").split("@")[0].toLowerCase();
   }
   function closeModal() { const o = document.getElementById("overlay"); if (o) o.remove(); }
 
@@ -123,7 +133,8 @@
     if (!isMember && !state.isOwner) { renderPending(); return; }
     await loadProfile();
     renderApp();
-    await refreshNews(true);
+    if (needsOnboarding()) { await refreshNews(false); onboardingModal(); }
+    else { await refreshNews(true); }
   }
 
   function renderPending() {
@@ -141,15 +152,55 @@
   async function loadProfile() {
     let { data } = await sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
     if (!data) {
-      // Fallback in case the signup trigger hasn't landed yet.
-      await sb.from("profiles").insert({
-        id: state.user.id, email: state.user.email,
-        full_name: (state.user.email || "friend").split("@")[0],
-      });
+      // Fallback in case the signup trigger hasn't landed yet. Leave the name
+      // blank so onboarding prompts for it; the DB trigger assigns a color.
+      await sb.from("profiles").insert({ id: state.user.id, email: state.user.email, full_name: null });
       const r = await sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
       data = r.data;
     }
-    state.profile = data || { id: state.user.id, email: state.user.email, full_name: "", news_seen_at: "2000-01-01" };
+    state.profile = data || { id: state.user.id, email: state.user.email, full_name: "", color: PALETTE[0], news_seen_at: "2000-01-01" };
+  }
+
+  /* ---------------- onboarding ---------------- */
+  function onboardingModal() {
+    const color = state.profile.color || PALETTE[0];
+    openModal(
+      '<div class="modal-head"><h2>Welcome to Moose Tracker! 🫎</h2></div>' +
+      '<p class="muted">Let\'s get you set up. This only takes a second.</p>' +
+      '<div class="field"><label>What should the family call you?</label>' +
+        '<input id="ob-name" placeholder="e.g. Aunt Sue" autocomplete="name" /></div>' +
+      '<div class="field"><label>Your booking color</label>' +
+        '<p class="tiny muted" style="margin:-2px 0 8px">This is how your stays show up on the calendar.</p>' +
+        '<div class="row" style="gap:12px"><span id="ob-swatch" class="color-chip lg" style="background:' + color + '"></span>' +
+        '<button class="btn ghost sm" data-act="shuffle-color">🎲 Shuffle</button></div></div>' +
+      '<div class="actions"><button class="btn block" data-act="save-onboarding">Let\'s go</button></div>',
+      "onboarding", true
+    );
+    const inp = document.getElementById("ob-name");
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") saveOnboarding(); });
+    inp.focus();
+  }
+  function shuffleColor() {
+    const cur = state.profile.color;
+    let c = cur;
+    while (c === cur) c = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+    state.profile.color = c;
+    const sw = document.getElementById("ob-swatch"); if (sw) sw.style.background = c;
+    const acs = document.getElementById("ac-swatch"); if (acs) acs.style.background = c;
+  }
+  async function saveOnboarding() {
+    const name = (document.getElementById("ob-name").value || "").trim();
+    if (!name) { toast("Please enter your name.", "err"); return; }
+    const btn = document.querySelector('[data-act="save-onboarding"]');
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+    const { error } = await sb.from("profiles").update({ full_name: name, color: state.profile.color }).eq("id", state.user.id);
+    if (error) { toast(error.message, "err"); if (btn) { btn.disabled = false; btn.textContent = "Let's go"; } return; }
+    state.profile.full_name = name;
+    const who = document.querySelector(".who"); if (who) who.textContent = firstName();
+    closeModal();
+    toast("You're all set! 🎉");
+    if (state.tab === "calendar") renderTab();
+    await refreshNews(true);
   }
 
   function renderLogin() {
@@ -260,11 +311,21 @@
   /* ---------------- CALENDAR ---------------- */
   async function viewCalendar() {
     loading();
-    const { data: bookings, error } = await sb.from("bookings").select("*").order("start_date");
-    if (error) { viewEl().innerHTML = errBox(error); return; }
-    state._bookings = bookings || [];
+    const [bk, pf] = await Promise.all([
+      sb.from("bookings").select("*").order("start_date"),
+      sb.from("profiles").select("id,full_name,color"),
+    ]);
+    if (bk.error) { viewEl().innerHTML = errBox(bk.error); return; }
+    state._bookings = bk.data || [];
+    state._people = {};
+    (pf.data || []).forEach((p) => { state._people[p.id] = p; });
     drawCalendar();
     fab("add-booking", "Add stay");
+  }
+
+  function bookingColor(b) {
+    const p = (state._people || {})[b.user_id];
+    return (p && p.color) || (b.user_id === state.user.id && state.profile && state.profile.color) || "#4E5D46";
   }
 
   function drawCalendar() {
@@ -292,10 +353,21 @@
       if (k === today) cls.push("today");
       if (b) cls.push("booked");
       else if (k < today) cls.push("past");
-      cells += '<button class="' + cls.join(" ") + '" data-day="' + k + '">' + day + "</button>";
+      const style = b ? ' style="background:' + bookingColor(b) + ';border-color:' + bookingColor(b) + '"' : "";
+      cells += '<button class="' + cls.join(" ") + '"' + style + ' data-day="' + k + '">' + day + "</button>";
     }
 
     const upcoming = bookings.filter((b) => b.end_date >= today);
+    // Distinct people among upcoming stays, for the color key.
+    const seen = {}, keyPeople = [];
+    upcoming.forEach((b) => { if (!seen[b.user_id]) { seen[b.user_id] = 1; keyPeople.push(b); } });
+    const personName = (b) => {
+      const p = (state._people || {})[b.user_id];
+      return (p && p.full_name) || b.guest_name;
+    };
+    const legend = keyPeople.map((b) =>
+      '<span><span class="sw" style="background:' + bookingColor(b) + '"></span>' + esc(personName(b)) + "</span>"
+    ).join("") + '<span><span class="sw" style="background:#fff;outline:2px solid var(--blue);outline-offset:-2px"></span>Today</span>';
 
     viewEl().innerHTML =
       '<div class="view-head"><h2>Cabin Calendar</h2></div>' +
@@ -305,9 +377,7 @@
           '<div class="cal-nav"><button data-act="cal-prev">‹</button><button data-act="cal-today">•</button><button data-act="cal-next">›</button></div>' +
         "</div>" +
         '<div class="cal-grid">' + DOW.map((d) => '<div class="cal-dow">' + d + "</div>").join("") + cells + "</div>" +
-        '<div class="cal-legend"><span><span class="sw" style="background:var(--green)"></span>Booked</span>' +
-          '<span><span class="sw" style="background:#fff;border:1px solid var(--line)"></span>Open</span>' +
-          '<span><span class="sw" style="background:#fff;outline:2px solid var(--blue);outline-offset:-2px"></span>Today</span></div>' +
+        '<div class="cal-legend">' + legend + "</div>" +
       "</div>" +
       '<div class="section-label">Upcoming stays</div>' +
       (upcoming.length
@@ -318,9 +388,10 @@
   function bookingCard(b) {
     const mine = b.user_id === state.user.id;
     const canDel = mine || state.isOwner;
-    return '<div class="card">' +
+    const col = bookingColor(b);
+    return '<div class="card" style="border-left:5px solid ' + col + '">' +
       '<div class="row"><div style="flex:1">' +
-        "<h3>" + esc(b.guest_name) + (mine ? ' <span class="pill done">You</span>' : "") + "</h3>" +
+        '<h3><span class="color-chip" style="background:' + col + '"></span>' + esc(b.guest_name) + (mine ? ' <span class="pill done">You</span>' : "") + "</h3>" +
         '<div class="small muted">' + esc(fmtRange(b.start_date, b.end_date)) + " · " + nights(b.start_date, b.end_date) + " night" + (nights(b.start_date, b.end_date) === 1 ? "" : "s") + "</div>" +
         (b.notes ? '<div class="small" style="margin-top:4px">' + esc(b.notes) + "</div>" : "") +
       "</div>" +
@@ -732,22 +803,33 @@
 
   /* ---------------- ACCOUNT ---------------- */
   function accountModal() {
+    const cur = (state.profile && state.profile.color) || PALETTE[0];
+    const swatches = PALETTE.map((c) =>
+      '<button class="color-opt' + (c === cur ? " sel" : "") + '" data-act="pick-color" data-color="' + c + '" style="background:' + c + '"></button>'
+    ).join("");
     openModal(
       '<div class="modal-head"><h2>Your account</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<div class="field"><label>Display name</label><input id="ac-name" value="' + esc((state.profile && state.profile.full_name) || "") + '" placeholder="Your name" /></div>' +
+      '<div class="field"><label>Your booking color</label><div class="color-grid" id="ac-colors">' + swatches + "</div></div>" +
       '<p class="tiny muted">Signed in as ' + esc(state.user.email) + (state.isOwner ? " · Owner" : "") + "</p>" +
       (state.isOwner ? '<button class="btn blue block" data-act="manage-family" style="margin:6px 0 4px">👪 Manage family list</button>' : "") +
       '<div class="actions"><button class="btn ghost" data-act="sign-out">Sign out</button><button class="btn" data-act="save-name">Save</button></div>'
     );
   }
+  function pickColor(color) {
+    state.profile.color = color;
+    document.querySelectorAll("#ac-colors .color-opt").forEach((el) =>
+      el.classList.toggle("sel", el.dataset.color === color));
+  }
   async function saveName() {
     const name = document.getElementById("ac-name").value.trim();
     if (!name) { toast("Name can't be empty.", "err"); return; }
-    const { error } = await sb.from("profiles").update({ full_name: name }).eq("id", state.user.id);
+    const { error } = await sb.from("profiles").update({ full_name: name, color: state.profile.color }).eq("id", state.user.id);
     if (error) { toast(error.message, "err"); return; }
     state.profile.full_name = name;
     const who = document.querySelector(".who"); if (who) who.textContent = firstName();
     closeModal(); toast("Saved.");
+    if (state.tab === "calendar") renderTab();
   }
 
   /* ---------------- FAMILY LIST (owner only) ---------------- */
@@ -807,6 +889,9 @@
       "account": accountModal,
       "sign-out": signOut,
       "save-name": saveName,
+      "save-onboarding": saveOnboarding,
+      "shuffle-color": shuffleColor,
+      "pick-color": () => pickColor(el.dataset.color),
       "manage-family": openFamily,
       "add-member": addMember,
       "remove-member": () => removeMember(el.dataset.email),
