@@ -398,8 +398,9 @@
   }
 
   function bookingCard(b) {
-    const mine = b.user_id === state.user.id;
-    const canDel = mine || state.isOwner;
+    const myName = (state.profile && state.profile.full_name || "").trim().toLowerCase();
+    const mine = !!myName && (b.guest_name || "").trim().toLowerCase() === myName;
+    const canDel = b.user_id === state.user.id || state.isOwner;
     const col = bookingColor(b);
     return '<div class="card" style="border-left:5px solid ' + col + '">' +
       '<div class="row"><div style="flex:1">' +
