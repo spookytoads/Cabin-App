@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Moose Tracker logo">
   <!-- Badge -->
-  <circle cx="64" cy="64" r="62" fill="#4E5D46"/>
-  <circle cx="64" cy="64" r="57" fill="none" stroke="#B85446" stroke-width="3"/>
-  <circle cx="64" cy="64" r="52" fill="#F5F1E8"/>
+  <circle cx="64" cy="64" r="62" fill="#47563F"/>
+  <circle cx="64" cy="64" r="57" fill="none" stroke="#C0533B" stroke-width="3"/>
+  <circle cx="64" cy="64" r="52" fill="#F2EFE6"/>
 
   <g stroke="#3A2C22" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
     <!-- Palmate antlers (broad paddles with prongs) -->

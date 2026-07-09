@@ -81,8 +81,23 @@
     return ov;
   }
 
-  // 12-color cabin palette for per-person booking colors (kept in sync with the DB).
-  const PALETTE = ["#4E5D46","#B85446","#2C3E52","#7A5540","#8A6D1F","#3E6B5A","#7C4A63","#A85A32","#556B78","#6B7A3A","#9E4B4B","#4A6E8A"];
+  // Booking colors are derived from the NAME on the booking, so the same person
+  // (or couple) always gets the same color no matter who logs the stay in.
+  const PALETTE = ["#C0533B","#47563F","#2F5480","#6D82A8","#6F7D5A","#A06F3E","#9D5E52","#3F7168","#7C6699","#8A8F4A"];
+  function hashStr(s) {
+    let h = 0; s = (s || "").trim().toLowerCase();
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+  function colorForName(name) {
+    if (!name || !name.trim()) return "#47563F";
+    return PALETTE[hashStr(name) % PALETTE.length];
+  }
+  function initialsOf(name) {
+    const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+  }
   function needsOnboarding() {
     const p = state.profile || {};
     const name = (p.full_name || "").trim();
@@ -163,37 +178,34 @@
 
   /* ---------------- onboarding ---------------- */
   function onboardingModal() {
-    const color = state.profile.color || PALETTE[0];
     openModal(
       '<div class="modal-head"><h2>Welcome to Moose Tracker! 🫎</h2></div>' +
       '<p class="muted">Let\'s get you set up. This only takes a second.</p>' +
       '<div class="field"><label>What should the family call you?</label>' +
         '<input id="ob-name" placeholder="e.g. Aunt Sue" autocomplete="name" /></div>' +
-      '<div class="field"><label>Your booking color</label>' +
-        '<p class="tiny muted" style="margin:-2px 0 8px">This is how your stays show up on the calendar.</p>' +
-        '<div class="row" style="gap:12px"><span id="ob-swatch" class="color-chip lg" style="background:' + color + '"></span>' +
-        '<button class="btn ghost sm" data-act="shuffle-color">🎲 Shuffle</button></div></div>' +
+      '<div class="row" style="gap:12px;align-items:center;margin-top:4px">' +
+        '<span id="ob-swatch" class="color-chip lg" style="background:#47563F"></span>' +
+        '<div class="small muted">Your name has its own color — this is how your stays show up on the calendar.</div></div>' +
       '<div class="actions"><button class="btn block" data-act="save-onboarding">Let\'s go</button></div>',
       "onboarding", true
     );
     const inp = document.getElementById("ob-name");
+    const paint = () => {
+      const v = inp.value.trim();
+      const sw = document.getElementById("ob-swatch");
+      sw.style.background = colorForName(v);
+      sw.textContent = v ? initialsOf(v) : "";
+    };
+    inp.addEventListener("input", paint);
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") saveOnboarding(); });
     inp.focus();
-  }
-  function shuffleColor() {
-    const cur = state.profile.color;
-    let c = cur;
-    while (c === cur) c = PALETTE[Math.floor(Math.random() * PALETTE.length)];
-    state.profile.color = c;
-    const sw = document.getElementById("ob-swatch"); if (sw) sw.style.background = c;
-    const acs = document.getElementById("ac-swatch"); if (acs) acs.style.background = c;
   }
   async function saveOnboarding() {
     const name = (document.getElementById("ob-name").value || "").trim();
     if (!name) { toast("Please enter your name.", "err"); return; }
     const btn = document.querySelector('[data-act="save-onboarding"]');
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
-    const { error } = await sb.from("profiles").update({ full_name: name, color: state.profile.color }).eq("id", state.user.id);
+    const { error } = await sb.from("profiles").update({ full_name: name }).eq("id", state.user.id);
     if (error) { toast(error.message, "err"); if (btn) { btn.disabled = false; btn.textContent = "Let's go"; } return; }
     state.profile.full_name = name;
     const who = document.querySelector(".who"); if (who) who.textContent = firstName();
@@ -311,22 +323,14 @@
   /* ---------------- CALENDAR ---------------- */
   async function viewCalendar() {
     loading();
-    const [bk, pf] = await Promise.all([
-      sb.from("bookings").select("*").order("start_date"),
-      sb.from("profiles").select("id,full_name,color"),
-    ]);
-    if (bk.error) { viewEl().innerHTML = errBox(bk.error); return; }
-    state._bookings = bk.data || [];
-    state._people = {};
-    (pf.data || []).forEach((p) => { state._people[p.id] = p; });
+    const { data, error } = await sb.from("bookings").select("*").order("start_date");
+    if (error) { viewEl().innerHTML = errBox(error); return; }
+    state._bookings = data || [];
     drawCalendar();
     fab("add-booking", "Add stay");
   }
 
-  function bookingColor(b) {
-    const p = (state._people || {})[b.user_id];
-    return (p && p.color) || (b.user_id === state.user.id && state.profile && state.profile.color) || "#4E5D46";
-  }
+  function bookingColor(b) { return colorForName(b.guest_name); }
 
   function drawCalendar() {
     const bookings = state._bookings || [];
@@ -358,15 +362,11 @@
     }
 
     const upcoming = bookings.filter((b) => b.end_date >= today);
-    // Distinct people among upcoming stays, for the color key.
+    // Distinct names among upcoming stays, for the color key.
     const seen = {}, keyPeople = [];
-    upcoming.forEach((b) => { if (!seen[b.user_id]) { seen[b.user_id] = 1; keyPeople.push(b); } });
-    const personName = (b) => {
-      const p = (state._people || {})[b.user_id];
-      return (p && p.full_name) || b.guest_name;
-    };
+    upcoming.forEach((b) => { const k = (b.guest_name || "").trim().toLowerCase(); if (!seen[k]) { seen[k] = 1; keyPeople.push(b); } });
     const legend = keyPeople.map((b) =>
-      '<span><span class="sw" style="background:' + bookingColor(b) + '"></span>' + esc(personName(b)) + "</span>"
+      '<span><span class="sw" style="background:' + bookingColor(b) + '"></span>' + esc(b.guest_name) + "</span>"
     ).join("") + '<span><span class="sw" style="background:#fff;outline:2px solid var(--blue);outline-offset:-2px"></span>Today</span>';
 
     viewEl().innerHTML =
@@ -670,20 +670,145 @@
     closeModal(); toast("Procedures updated."); viewProcedures();
   }
 
-  /* ---------------- MAINTENANCE (owner only) ---------------- */
-  async function viewMaintenance() {
-    loading();
+  /* ---------------- PRIVATE (owner only): Upkeep + Costs ---------------- */
+  function privBody() { return document.getElementById("priv-body"); }
+  function viewMaintenance() {
+    const pt = state.privTab || "upkeep";
+    viewEl().innerHTML =
+      '<div class="view-head"><h2>Private</h2><div class="spacer"></div><span class="lock-note">🔒 Only you</span></div>' +
+      '<div class="segmented">' +
+        '<button data-act="priv-tab" data-pt="upkeep" class="' + (pt === "upkeep" ? "active" : "") + '">🗓️ Upkeep</button>' +
+        '<button data-act="priv-tab" data-pt="costs" class="' + (pt === "costs" ? "active" : "") + '">🧾 Costs</button>' +
+      "</div>" +
+      '<div id="priv-body"><div class="loading"><div class="spin"></div>Loading…</div></div>';
+    if (pt === "costs") viewCosts(); else viewUpkeep();
+  }
+  function setPrivTab(pt) { state.privTab = pt; viewMaintenance(); window.scrollTo(0, 0); }
+
+  /* ---- Upkeep schedule ---- */
+  function addMonthsYmd(dateStr, months) { const d = parseYmd(dateStr); d.setMonth(d.getMonth() + months); return ymd(d); }
+  function dueStatus(r) {
+    if (!r.next_due) return { key: "none", label: "No due date" };
+    const t = todayYmd();
+    if (r.next_due < t) return { key: "overdue", label: "Overdue" };
+    if (r.next_due <= ymd(new Date(Date.now() + 30 * 86400000))) return { key: "soon", label: "Due soon" };
+    return { key: "ok", label: "Scheduled" };
+  }
+  function upkeepSort(a, b) {
+    if (!a.next_due && !b.next_due) return (a.title || "").localeCompare(b.title || "");
+    if (!a.next_due) return 1; if (!b.next_due) return -1;
+    return a.next_due.localeCompare(b.next_due);
+  }
+  async function viewUpkeep() {
+    const { data, error } = await sb.from("upkeep").select("*");
+    const body = privBody(); if (!body) return;
+    if (error) { body.innerHTML = errBox(error); return; }
+    state._upkeep = {};
+    const rows = (data || []).slice().sort(upkeepSort);
+    rows.forEach((r) => { state._upkeep[r.id] = r; });
+    body.innerHTML =
+      '<p class="muted small" style="margin-top:-4px">What gets done, by who, and when it\'s due next.</p>' +
+      (rows.length ? '<div class="list">' + rows.map(upkeepCard).join("") + "</div>"
+        : '<div class="empty"><div class="big">🗓️</div>No upkeep tasks yet.<br>Tap + to add one (e.g. “Service the furnace”).</div>');
+    fab("add-upkeep", "Add task");
+  }
+  function upkeepCard(r) {
+    const st = dueStatus(r);
+    return '<div class="card">' +
+      '<div style="flex:1">' +
+        '<h3 style="font-size:16px">' + esc(r.title) + "</h3>" +
+        '<div style="margin-top:5px"><span class="pill due_' + st.key + '">' + (st.key === "overdue" ? "⚠️ " : "") + esc(st.label) +
+          (r.next_due ? " · " + esc(fmtLong(r.next_due)) : "") + "</span></div>" +
+        '<div class="upkeep-meta">' +
+          '<span class="k">Last done: <b>' + (r.last_done ? esc(fmtLong(r.last_done)) : "—") + "</b>" +
+            (r.done_by ? " by <b>" + esc(r.done_by) + "</b>" : "") + "</span>" +
+          (r.interval_months ? '<span class="k">Repeats every <b>' + r.interval_months + " month" + (r.interval_months == 1 ? "" : "s") + "</b></span>" : "") +
+          (r.notes ? '<span class="k">' + esc(r.notes) + "</span>" : "") +
+        "</div>" +
+      "</div>" +
+      '<div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">' +
+        '<button class="btn sm" data-act="done-upkeep" data-id="' + r.id + '">✓ Mark done</button>' +
+        '<button class="btn ghost sm" data-act="edit-upkeep" data-id="' + r.id + '">Edit</button>' +
+        '<button class="btn ghost sm" data-act="del-upkeep" data-id="' + r.id + '">Delete</button>' +
+      "</div></div>";
+  }
+  function upkeepForm(r) {
+    const isEdit = !!r; r = r || {};
+    const who = r.done_by || (state.profile && state.profile.full_name) || "";
+    openModal(
+      '<div class="modal-head"><h2>' + (isEdit ? "Edit task" : "New upkeep task") + '</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
+      '<div class="field"><label>Task</label><input id="up-title" value="' + esc(r.title || "") + '" placeholder="e.g. Service the furnace" /></div>' +
+      '<div class="row" style="gap:12px">' +
+        '<div class="field" style="flex:1"><label>Last done</label><input id="up-last" type="date" value="' + esc(r.last_done || "") + '" /></div>' +
+        '<div class="field" style="flex:1"><label>Done by</label><input id="up-by" value="' + esc(who) + '" placeholder="Name" /></div>' +
+      "</div>" +
+      '<div class="row" style="gap:12px">' +
+        '<div class="field" style="flex:1"><label>Repeat every (months)</label><input id="up-int" type="number" inputmode="numeric" min="1" value="' + esc(r.interval_months || "") + '" placeholder="e.g. 12" /></div>' +
+        '<div class="field" style="flex:1"><label>Next due</label><input id="up-next" type="date" value="' + esc(r.next_due || "") + '" /></div>' +
+      "</div>" +
+      '<p class="tiny muted" style="margin-top:-4px">Leave “Next due” blank and it\'s auto-set from “Last done” + the repeat interval.</p>' +
+      '<div class="field"><label>Notes (optional)</label><textarea id="up-notes">' + esc(r.notes || "") + "</textarea></div>" +
+      '<div class="actions"><button class="btn ghost" data-act="close">Cancel</button><button class="btn" data-act="save-upkeep" data-id="' + (r.id || "") + '">Save</button></div>'
+    );
+  }
+  async function saveUpkeep(id) {
+    const title = document.getElementById("up-title").value.trim();
+    if (!title) { toast("Give the task a name.", "err"); return; }
+    const last = document.getElementById("up-last").value || null;
+    const intRaw = document.getElementById("up-int").value;
+    const interval = intRaw === "" ? null : Math.max(1, parseInt(intRaw, 10) || 0) || null;
+    let next = document.getElementById("up-next").value || null;
+    if (!next && last && interval) next = addMonthsYmd(last, interval);
+    const row = {
+      title, last_done: last, done_by: document.getElementById("up-by").value.trim() || null,
+      interval_months: interval, next_due: next, notes: document.getElementById("up-notes").value.trim() || null,
+    };
+    const q = id ? sb.from("upkeep").update(row).eq("id", id) : sb.from("upkeep").insert(row);
+    const { error } = await q;
+    if (error) { toast(error.message, "err"); return; }
+    closeModal(); toast("Saved."); viewUpkeep();
+  }
+  function doneUpkeepForm(id) {
+    const r = (state._upkeep || {})[id] || {};
+    const suggestNext = r.interval_months ? addMonthsYmd(todayYmd(), r.interval_months) : (r.next_due || "");
+    openModal(
+      '<div class="modal-head"><h2>Mark done</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
+      '<p class="muted small">' + esc(r.title || "") + "</p>" +
+      '<div class="row" style="gap:12px">' +
+        '<div class="field" style="flex:1"><label>Date done</label><input id="dn-date" type="date" value="' + todayYmd() + '" /></div>' +
+        '<div class="field" style="flex:1"><label>Done by</label><input id="dn-by" value="' + esc((state.profile && state.profile.full_name) || "") + '" placeholder="Name" /></div>' +
+      "</div>" +
+      '<div class="field"><label>Next due (optional)</label><input id="dn-next" type="date" value="' + esc(suggestNext) + '" /></div>' +
+      '<div class="actions"><button class="btn ghost" data-act="close">Cancel</button><button class="btn" data-act="save-done" data-id="' + id + '">Save</button></div>'
+    );
+  }
+  async function saveDone(id) {
+    const date = document.getElementById("dn-date").value || todayYmd();
+    const { error } = await sb.from("upkeep").update({
+      last_done: date,
+      done_by: document.getElementById("dn-by").value.trim() || null,
+      next_due: document.getElementById("dn-next").value || null,
+    }).eq("id", id);
+    if (error) { toast(error.message, "err"); return; }
+    closeModal(); toast("Nice — logged. ✓"); viewUpkeep();
+  }
+  async function delUpkeep(id) {
+    const { error } = await sb.from("upkeep").delete().eq("id", id);
+    if (error) { toast(error.message, "err"); return; } toast("Deleted."); viewUpkeep();
+  }
+
+  /* ---- Costs log ---- */
+  async function viewCosts() {
     const { data, error } = await sb.from("maintenance").select("*").order("service_date", { ascending: false, nullsFirst: false });
-    if (error) { viewEl().innerHTML = errBox(error); return; }
+    const body = privBody(); if (!body) return;
+    if (error) { body.innerHTML = errBox(error); return; }
     const rows = data || [];
     const total = rows.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
-    viewEl().innerHTML =
-      '<div class="view-head"><h2>Maintenance</h2><div class="spacer"></div><span class="lock-note">🔒 Only you</span></div>' +
-      '<p class="muted small" style="margin-top:-6px">Your private log of cabin maintenance &amp; costs. No one else can see this tab.</p>' +
+    body.innerHTML =
       '<div class="total-bar"><div><div class="lbl">Total logged</div></div><div class="amt">' + money(total) + "</div></div>" +
       (rows.length ? '<div class="list">' + rows.map(maintCard).join("") + "</div>"
-        : '<div class="empty"><div class="big">🧾</div>No records yet.<br>Tap + to log maintenance.</div>');
-    fab("add-maint", "Add record");
+        : '<div class="empty"><div class="big">🧾</div>No costs logged yet.<br>Tap + to add a repair or bill.</div>');
+    fab("add-maint", "Add cost");
   }
   function maintCard(r) {
     return '<div class="card"><div class="row" style="align-items:flex-start">' +
@@ -721,11 +846,11 @@
       notes: document.getElementById("mt-notes").value.trim() || null,
     });
     if (error) { toast(error.message, "err"); return; }
-    closeModal(); toast("Record saved."); viewMaintenance();
+    closeModal(); toast("Record saved."); viewCosts();
   }
   async function delMaint(id) {
     const { error } = await sb.from("maintenance").delete().eq("id", id);
-    if (error) { toast(error.message, "err"); return; } toast("Deleted."); viewMaintenance();
+    if (error) { toast(error.message, "err"); return; } toast("Deleted."); viewCosts();
   }
 
   /* ---------------- NEWS ---------------- */
@@ -803,28 +928,28 @@
 
   /* ---------------- ACCOUNT ---------------- */
   function accountModal() {
-    const cur = (state.profile && state.profile.color) || PALETTE[0];
-    const swatches = PALETTE.map((c) =>
-      '<button class="color-opt' + (c === cur ? " sel" : "") + '" data-act="pick-color" data-color="' + c + '" style="background:' + c + '"></button>'
-    ).join("");
+    const nm = (state.profile && state.profile.full_name) || "";
     openModal(
       '<div class="modal-head"><h2>Your account</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
-      '<div class="field"><label>Display name</label><input id="ac-name" value="' + esc((state.profile && state.profile.full_name) || "") + '" placeholder="Your name" /></div>' +
-      '<div class="field"><label>Your booking color</label><div class="color-grid" id="ac-colors">' + swatches + "</div></div>" +
+      '<div class="field"><label>Display name</label><input id="ac-name" value="' + esc(nm) + '" placeholder="Your name" /></div>' +
+      '<div class="row" style="gap:12px;align-items:center;margin-bottom:6px">' +
+        '<span id="ac-swatch" class="color-chip lg" style="background:' + colorForName(nm) + '">' + esc(initialsOf(nm)) + "</span>" +
+        '<div class="small muted">Calendar colors follow the name on each stay.</div></div>' +
       '<p class="tiny muted">Signed in as ' + esc(state.user.email) + (state.isOwner ? " · Owner" : "") + "</p>" +
       (state.isOwner ? '<button class="btn blue block" data-act="manage-family" style="margin:6px 0 4px">👪 Manage family list</button>' : "") +
       '<div class="actions"><button class="btn ghost" data-act="sign-out">Sign out</button><button class="btn" data-act="save-name">Save</button></div>'
     );
-  }
-  function pickColor(color) {
-    state.profile.color = color;
-    document.querySelectorAll("#ac-colors .color-opt").forEach((el) =>
-      el.classList.toggle("sel", el.dataset.color === color));
+    const inp = document.getElementById("ac-name");
+    inp.addEventListener("input", () => {
+      const v = inp.value.trim();
+      const sw = document.getElementById("ac-swatch");
+      sw.style.background = colorForName(v); sw.textContent = initialsOf(v);
+    });
   }
   async function saveName() {
     const name = document.getElementById("ac-name").value.trim();
     if (!name) { toast("Name can't be empty.", "err"); return; }
-    const { error } = await sb.from("profiles").update({ full_name: name, color: state.profile.color }).eq("id", state.user.id);
+    const { error } = await sb.from("profiles").update({ full_name: name }).eq("id", state.user.id);
     if (error) { toast(error.message, "err"); return; }
     state.profile.full_name = name;
     const who = document.querySelector(".who"); if (who) who.textContent = firstName();
@@ -890,8 +1015,6 @@
       "sign-out": signOut,
       "save-name": saveName,
       "save-onboarding": saveOnboarding,
-      "shuffle-color": shuffleColor,
-      "pick-color": () => pickColor(el.dataset.color),
       "manage-family": openFamily,
       "add-member": addMember,
       "remove-member": () => removeMember(el.dataset.email),
@@ -922,10 +1045,18 @@
       // procedures
       "edit-proc": () => editProc(el.dataset.kind),
       "save-proc": () => saveProc(el.dataset.kind),
-      // maintenance
+      // private: costs
       "add-maint": maintForm,
       "save-maint": saveMaint,
       "del-maint": () => confirmDialog("Delete this record?", () => delMaint(id)),
+      // private: sub-tabs + upkeep schedule
+      "priv-tab": () => setPrivTab(el.dataset.pt),
+      "add-upkeep": () => upkeepForm(),
+      "edit-upkeep": () => upkeepForm((state._upkeep || {})[id]),
+      "save-upkeep": () => saveUpkeep(id),
+      "done-upkeep": () => doneUpkeepForm(id),
+      "save-done": () => saveDone(id),
+      "del-upkeep": () => confirmDialog("Delete this task?", () => delUpkeep(id)),
     };
     if (A[act]) A[act](e);
   });

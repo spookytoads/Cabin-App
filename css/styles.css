@@ -1,28 +1,27 @@
 /* ============================================================
    Moose Tracker — cabin theme
-   Flat & modern. Colors pulled from the cabin:
-   dull red, forest green, dark blue, warm white.
+   Flat & modern. Green primary → rust → dark blue → cream.
    ============================================================ */
 :root {
-  --green:        #4E5D46;
-  --green-dark:   #3A4636;
-  --green-light:  #6B7A5E;
-  --green-tint:   #E9EDE3;
-  --red:          #B85446;
-  --red-dark:     #99412F;
-  --red-tint:     #F6E5E0;
-  --blue:         #2C3E52;
-  --blue-light:   #3E5770;
-  --blue-tint:    #E5EAF0;
-  --cream:        #F5F1E8;
+  --green:        #47563F;
+  --green-dark:   #3A4632;
+  --green-light:  #7A8266;
+  --green-tint:   #E6E9DF;
+  --red:          #C0533B;
+  --red-dark:     #9D4230;
+  --red-tint:     #F5E2DC;
+  --blue:         #2F5480;
+  --blue-light:   #6D82A8;
+  --blue-tint:    #E3E8F0;
+  --cream:        #EFE9DC;
   --white:        #FFFFFF;
-  --ink:          #2B2A26;
-  --muted:        #7A776E;
-  --line:         #E4DED0;
-  --shadow:       0 2px 10px rgba(43, 42, 38, .08);
-  --shadow-lg:    0 8px 30px rgba(43, 42, 38, .18);
-  --radius:       14px;
-  --radius-sm:    10px;
+  --ink:          #2F3129;
+  --muted:        #8C8578;
+  --line:         #E2DDD0;
+  --shadow:       0 2px 10px rgba(50, 45, 35, .07);
+  --shadow-lg:    0 12px 34px rgba(50, 45, 35, .18);
+  --radius:       16px;
+  --radius-sm:    12px;
   --safe-bottom:  env(safe-area-inset-bottom, 0px);
 }
 
@@ -30,11 +29,14 @@
 html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: var(--ink);
   background: var(--cream);
   -webkit-font-smoothing: antialiased;
   line-height: 1.45;
+}
+h1, h2, h3, .brand, .cal-head .mo, .view-head h2, .login-card h1, .total-bar .amt {
+  font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 h1, h2, h3 { margin: 0 0 .4em; font-weight: 700; letter-spacing: -.01em; }
 p { margin: 0 0 .6em; }
@@ -252,10 +254,20 @@ a { color: var(--blue-light); }
 
 .lock-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: var(--green-tint); padding: 5px 10px; border-radius: 20px; }
 
-/* Per-person color bits */
+/* Per-person color bits (color follows the name on the booking) */
 .color-chip { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: 0; margin-right: 6px; }
-.color-chip.lg { width: 40px; height: 40px; border-radius: 12px; margin: 0; box-shadow: inset 0 0 0 2px rgba(255,255,255,.5); }
-.color-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-.color-opt { width: 100%; aspect-ratio: 1/1; border-radius: 10px; border: none; cursor: pointer; position: relative; }
-.color-opt.sel { box-shadow: 0 0 0 3px var(--white), 0 0 0 5px var(--ink); }
-.color-opt.sel::after { content: "✓"; color: #fff; font-size: 14px; font-weight: 700; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.color-chip.lg { width: 44px; height: 44px; border-radius: 13px; margin: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-family: "Space Grotesk", sans-serif; box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); }
+
+/* Segmented control (Private sub-tabs) */
+.segmented { display: flex; background: var(--green-tint); border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+.segmented button { flex: 1; border: none; background: transparent; padding: 9px 8px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--green-dark); }
+.segmented button.active { background: var(--white); color: var(--ink); box-shadow: var(--shadow); }
+
+/* Upkeep schedule */
+.pill.due_ok      { background: var(--green-tint); color: var(--green-dark); }
+.pill.due_soon    { background: #FBEFD8; color: #8A6D1F; }
+.pill.due_overdue { background: var(--red-tint); color: var(--red-dark); }
+.pill.due_none    { background: #ECE7DB; color: var(--muted); }
+.upkeep-meta { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; font-size: 13px; }
+.upkeep-meta .k { color: var(--muted); }
+.upkeep-meta .k b { color: var(--ink); font-weight: 600; }
