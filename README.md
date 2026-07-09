@@ -25,8 +25,11 @@ for logins and data.
 
 ## The look
 
-Flat and modern, in the cabin's own colors: **forest green**, **dull red**,
-**dark blue** accents, and **warm white**. Logo is a cartoon moose (`assets/moose.svg`).
+A modern, immersive **dark forest-green** theme (design "3a"): green is the
+primary surface, **rust** is the secondary accent (next-up card, today, add
+button, active tab), and **dark blue** is the tertiary highlight — no white or
+tan backgrounds. Space Grotesk headings + DM Sans body. Logo is a cartoon moose
+(`assets/moose.svg`), and each stay is color-coded by the name on the booking.
 
 ---
 

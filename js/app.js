@@ -331,6 +331,17 @@
   }
 
   function bookingColor(b) { return colorForName(b.guest_name); }
+  function daysUntil(startStr) { return Math.round((parseYmd(startStr) - parseYmd(todayYmd())) / 86400000); }
+  function nextUpCard(b) {
+    const du = daysUntil(b.start_date);
+    const when = du <= 0 ? "Here now" : du === 1 ? "Tomorrow" : "in " + du + " days";
+    const n = nights(b.start_date, b.end_date);
+    return '<div class="nextup">' +
+      '<div class="row"><span class="eyebrow">Next up</span><span class="when-pill">' + esc(when) + "</span></div>" +
+      '<div class="nu-title">' + esc(b.guest_name) + "</div>" +
+      '<div class="nu-sub">' + esc(fmtRange(b.start_date, b.end_date)) + " · " + n + " night" + (n === 1 ? "" : "s") + "</div>" +
+    "</div>";
+  }
 
   function drawCalendar() {
     const bookings = state._bookings || [];
@@ -367,10 +378,11 @@
     upcoming.forEach((b) => { const k = (b.guest_name || "").trim().toLowerCase(); if (!seen[k]) { seen[k] = 1; keyPeople.push(b); } });
     const legend = keyPeople.map((b) =>
       '<span><span class="sw" style="background:' + bookingColor(b) + '"></span>' + esc(b.guest_name) + "</span>"
-    ).join("") + '<span><span class="sw" style="background:#fff;outline:2px solid var(--blue);outline-offset:-2px"></span>Today</span>';
+    ).join("") + '<span><span class="sw" style="background:transparent;outline:2px solid var(--red);outline-offset:-2px"></span>Today</span>';
 
     viewEl().innerHTML =
       '<div class="view-head"><h2>Cabin Calendar</h2></div>' +
+      (upcoming.length ? nextUpCard(upcoming[0]) : "") +
       '<div class="card">' +
         '<div class="cal-head">' +
           '<div class="mo">' + MONTHS[month] + " " + year + "</div>" +
