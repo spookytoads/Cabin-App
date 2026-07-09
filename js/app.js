@@ -83,17 +83,39 @@
 
   // Booking colors are derived from the NAME on the booking, so the same person
   // (or couple) always gets the same color no matter who logs the stay in.
-  // Reds / oranges / blues / purples only — no green (greens vanish on the
-  // green calendar background).
-  const PALETTE = ["#C0533B","#2F5480","#7C5A99","#CE7A32","#4A78B0","#A34E70","#B5442E","#5B6BB0","#BE7A2E","#8A5AA8","#3E6EA5","#B85C8A","#D2642F","#6E5AA0"];
+  // A broad, bright, highly-distinguishable palette that reads on the dark bg.
+  const PALETTE = ["#E6194B","#F58231","#FFD500","#3CB44B","#17BEBB","#42D4F4","#4363D8","#6A5AE0","#911EB4","#F032E6","#FF7BAC","#FF6D00","#9A6324","#2ECC71","#00A5CF","#E9C46A"];
+  // Each known household gets its own guaranteed-unique, distinct color (keyed
+  // by the normalized name). Unknown/new names fall back to the palette.
+  const PINNED = {
+    "sam and zeph": "#E6194B",
+    "max & friends": "#F58231",
+    "deb & vic": "#FFD500",
+    "marissa + drew": "#3CB44B",
+    "marlena & sam": "#42D4F4",
+    "abby and fam": "#4363D8",
+    "katie and rob": "#911EB4",
+    "elise h.": "#F032E6",
+    "debby & mark": "#17BEBB",
+    "su & jim": "#FF7BAC",
+    "debby & mark, marissa & matt": "#BFEF45",
+  };
+  function normKey(s) { return (s || "").trim().toLowerCase().replace(/\s+/g, " "); }
   function hashStr(s) {
-    let h = 0; s = (s || "").trim().toLowerCase();
+    let h = 0; s = normKey(s);
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
     return h;
   }
   function colorForName(name) {
-    if (!name || !name.trim()) return "#47563F";
-    return PALETTE[hashStr(name) % PALETTE.length];
+    if (!name || !name.trim()) return PALETTE[0];
+    const k = normKey(name);
+    return PINNED[k] || PALETTE[hashStr(k) % PALETTE.length];
+  }
+  // Pick readable text (dark or light) for initials shown on a color swatch.
+  function textOn(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return "#fff";
+    const n = parseInt(m[1], 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#20241C" : "#fff";
   }
   function initialsOf(name) {
     const parts = (name || "").trim().split(/\s+/).filter(Boolean);
@@ -195,7 +217,8 @@
     const paint = () => {
       const v = inp.value.trim();
       const sw = document.getElementById("ob-swatch");
-      sw.style.background = colorForName(v);
+      const c = colorForName(v);
+      sw.style.background = c; sw.style.color = textOn(c);
       sw.textContent = v ? initialsOf(v) : "";
     };
     inp.addEventListener("input", paint);
@@ -953,7 +976,7 @@
       '<div class="modal-head"><h2>Your account</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<div class="field"><label>Display name</label><input id="ac-name" value="' + esc(nm) + '" placeholder="Your name" /></div>' +
       '<div class="row" style="gap:12px;align-items:center;margin-bottom:6px">' +
-        '<span id="ac-swatch" class="color-chip lg" style="background:' + colorForName(nm) + '">' + esc(initialsOf(nm)) + "</span>" +
+        '<span id="ac-swatch" class="color-chip lg" style="background:' + colorForName(nm) + ';color:' + textOn(colorForName(nm)) + '">' + esc(initialsOf(nm)) + "</span>" +
         '<div class="small muted">Calendar colors follow the name on each stay.</div></div>' +
       '<p class="tiny muted">Signed in as ' + esc(state.user.email) + (state.isOwner ? " · Owner" : "") + "</p>" +
       (state.isOwner ? '<button class="btn blue block" data-act="manage-family" style="margin:6px 0 4px">👪 Manage family list</button>' : "") +
@@ -963,7 +986,8 @@
     inp.addEventListener("input", () => {
       const v = inp.value.trim();
       const sw = document.getElementById("ac-swatch");
-      sw.style.background = colorForName(v); sw.textContent = initialsOf(v);
+      const c = colorForName(v);
+      sw.style.background = c; sw.style.color = textOn(c); sw.textContent = initialsOf(v);
     });
   }
   async function saveName() {
