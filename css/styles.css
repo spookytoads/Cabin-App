@@ -201,8 +201,37 @@ a { color: var(--blue-light); }
 .news-item .when { font-size: 12px; color: var(--muted); }
 .news-item .body { white-space: pre-wrap; margin-top: 6px; }
 
-/* Procedures / preformatted content */
-.proc { white-space: pre-wrap; font-size: 15px; line-height: 1.6; }
+/* Procedures — segmented content */
+.proc { font-size: 15px; line-height: 1.55; }
+.proc-h {
+  font-size: 12px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--green-dark); margin: 22px 0 10px; padding: 0 0 7px 12px;
+  border-bottom: 2px solid var(--green-tint); position: relative;
+}
+.proc-h::before { content: ""; position: absolute; left: 0; top: 1px; bottom: 9px; width: 4px; border-radius: 3px; background: var(--red); }
+.proc > .proc-h:first-child { margin-top: 2px; }
+.proc-sub { font-weight: 700; color: var(--blue); margin: 14px 0 6px; font-size: 14.5px; }
+.proc-p { margin: 6px 0 10px; }
+.proc-steps { list-style: none; margin: 4px 0 10px; padding: 0; counter-reset: step; }
+.proc-steps li {
+  position: relative; padding: 7px 0 7px 34px; margin: 0;
+  border-bottom: 1px solid var(--line); line-height: 1.45;
+}
+.proc-steps li:last-child { border-bottom: none; }
+.proc-steps li::before {
+  counter-increment: step; content: counter(step);
+  position: absolute; left: 0; top: 6px; width: 23px; height: 23px;
+  background: var(--green); color: #fff; border-radius: 50%;
+  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.proc-bullets { margin: 4px 0 10px; padding-left: 4px; list-style: none; }
+.proc-bullets li { position: relative; padding: 4px 0 4px 18px; }
+.proc-bullets li::before { content: ""; position: absolute; left: 2px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+.proc-rows { display: flex; flex-direction: column; margin: 4px 0 10px; }
+.proc-row { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.proc-row:last-child { border-bottom: none; }
+.proc-row .k { color: var(--muted); }
+.proc-row .v { font-weight: 700; text-align: right; color: var(--ink); }
 
 /* Floating add button */
 .fab {

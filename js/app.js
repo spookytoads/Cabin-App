@@ -544,9 +544,43 @@
       '<div class="row"><h3 style="flex:1">' + title + "</h3>" +
         (state.isOwner ? '<button class="btn ghost sm" data-act="edit-proc" data-kind="' + kind + '">Edit</button>' : "") +
       "</div>" +
-      '<div class="proc">' + esc(content) + "</div>" +
-      (p && p.updated_at ? '<div class="tiny muted" style="margin-top:10px">Updated ' + esc(timeAgo(p.updated_at)) + "</div>" : "") +
+      '<div class="proc">' + renderProcContent(content) + "</div>" +
+      (p && p.updated_at ? '<div class="tiny muted" style="margin-top:12px">Updated ' + esc(timeAgo(p.updated_at)) + "</div>" : "") +
       "</div>";
+  }
+
+  // Turn the owner's plain-text procedures into clean, segmented HTML:
+  // ALL-CAPS lines become section headers, "Label:" lines become sub-headers,
+  // "1." lines become numbered steps, "- " lines become bullets, and
+  // "Label: value" lines (Wi-Fi, contacts) become tidy rows.
+  function renderProcContent(text) {
+    const lines = String(text).split(/\r?\n/);
+    let html = "", steps = [], rows = [], bullets = [];
+    const flushSteps = () => { if (steps.length) { html += '<ol class="proc-steps">' + steps.map((s) => "<li>" + esc(s) + "</li>").join("") + "</ol>"; steps = []; } };
+    const flushRows = () => { if (rows.length) { html += '<div class="proc-rows">' + rows.map((r) => '<div class="proc-row"><span class="k">' + esc(r.k) + '</span><span class="v">' + esc(r.v) + "</span></div>").join("") + "</div>"; rows = []; } };
+    const flushBullets = () => { if (bullets.length) { html += '<ul class="proc-bullets">' + bullets.map((b) => "<li>" + esc(b) + "</li>").join("") + "</ul>"; bullets = []; } };
+    const flushAll = () => { flushSteps(); flushRows(); flushBullets(); };
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      let m;
+      if ((m = line.match(/^(\d+)[.)]\s+(.*)$/))) { flushRows(); flushBullets(); steps.push(m[2]); continue; }
+      if ((m = line.match(/^[-•*]\s+(.*)$/))) { flushSteps(); flushRows(); bullets.push(m[1]); continue; }
+      // "Label: value" row (Wi-Fi, contacts) — short label + short value only, so
+      // prose sentences that happen to contain a colon stay as paragraphs.
+      if ((m = line.match(/^([^:]{1,30}):\s+(.{1,45})$/))) { flushSteps(); flushBullets(); rows.push({ k: m[1], v: m[2] }); continue; }
+      // Sub-header: a short line that ends with a colon (e.g. "Garage water heater:").
+      if (/^.{1,40}:\s*$/.test(line)) { flushAll(); html += '<div class="proc-sub">' + esc(line.replace(/:\s*$/, "")) + "</div>"; continue; }
+      // Section header: an all-caps line.
+      const alpha = line.replace(/\([^)]*\)/g, "").replace(/[^A-Za-z]/g, "");
+      if (alpha.length >= 2 && alpha === alpha.toUpperCase()) {
+        if (/CABIN/.test(line) && /(OPENING|CLOSING|ARRIVAL|DEPARTURE)/.test(line)) continue; // card already titled
+        flushAll(); html += '<div class="proc-h">' + esc(line) + "</div>"; continue;
+      }
+      flushAll(); html += '<p class="proc-p">' + esc(line) + "</p>";
+    }
+    flushAll();
+    return html || '<p class="proc-p muted">Nothing here yet.</p>';
   }
   async function editProc(kind) {
     const { data } = await sb.from("procedures").select("*").eq("kind", kind).maybeSingle();

@@ -4,45 +4,38 @@
   <circle cx="64" cy="64" r="57" fill="none" stroke="#B85446" stroke-width="3"/>
   <circle cx="64" cy="64" r="52" fill="#F5F1E8"/>
 
-  <g stroke="#3A4636" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
-    <!-- Antlers (palmate) - drawn behind the head -->
+  <g stroke="#3A2C22" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Palmate antlers (broad paddles with prongs) -->
     <g fill="#C9A96A">
-      <!-- left -->
-      <ellipse cx="34" cy="40" rx="16" ry="9" transform="rotate(-22 34 40)"/>
-      <circle cx="20" cy="30" r="5.5"/>
-      <circle cx="30" cy="25" r="5.5"/>
-      <circle cx="41" cy="27" r="5.5"/>
-      <!-- right -->
-      <ellipse cx="94" cy="40" rx="16" ry="9" transform="rotate(22 94 40)"/>
-      <circle cx="108" cy="30" r="5.5"/>
-      <circle cx="98" cy="25" r="5.5"/>
-      <circle cx="87" cy="27" r="5.5"/>
+      <path d="M52,46 C42,45 32,44 22,42 C16,41 11,38 8,32 L14,31 L8,22 L17,27 L15,13 L25,25 L28,12 L34,26 L39,15 L44,29 C49,33 52,39 52,46 Z"/>
+      <path d="M76,46 C86,45 96,44 106,42 C112,41 117,38 120,32 L114,31 L120,22 L111,27 L113,13 L103,25 L100,12 L94,26 L89,15 L84,29 C79,33 76,39 76,46 Z"/>
     </g>
 
     <!-- Ears -->
-    <g fill="#EFE3CB">
-      <ellipse cx="42" cy="54" rx="9" ry="6.5" transform="rotate(-32 42 54)"/>
-      <ellipse cx="86" cy="54" rx="9" ry="6.5" transform="rotate(32 86 54)"/>
+    <g fill="#7A5540">
+      <ellipse cx="36" cy="54" rx="9" ry="6" transform="rotate(-38 36 54)"/>
+      <ellipse cx="92" cy="54" rx="9" ry="6" transform="rotate(38 92 54)"/>
     </g>
 
-    <!-- Muzzle (lighter snout, behind head) -->
-    <ellipse cx="64" cy="86" rx="18" ry="18" fill="#E7D5B0"/>
-    <!-- Head -->
-    <ellipse cx="64" cy="60" rx="24" ry="22" fill="#EFE3CB"/>
+    <!-- Dewlap (bell) hanging under the chin -->
+    <path d="M58,96 C56,108 56,116 60,120 C64,123 66,116 66,108 C66,102 64,98 62,96 Z" fill="#6B4A37"/>
+
+    <!-- Long drooping muzzle -->
+    <path d="M46,66 C44,84 48,102 64,104 C80,102 84,84 82,66 Z" fill="#6E4C39"/>
+    <!-- Skull / forehead -->
+    <ellipse cx="64" cy="58" rx="22" ry="19" fill="#7A5540"/>
   </g>
 
-  <!-- Nose -->
-  <ellipse cx="64" cy="90" rx="11" ry="8" fill="#B85446" stroke="#3A4636" stroke-width="3"/>
-  <ellipse cx="59" cy="90" rx="1.8" ry="2.6" fill="#7D3A2F"/>
-  <ellipse cx="69" cy="90" rx="1.8" ry="2.6" fill="#7D3A2F"/>
+  <!-- Big dark nose pad -->
+  <path d="M53,92 C53,100 75,100 75,92 C75,86 70,84 64,84 C58,84 53,86 53,92 Z" fill="#33261F" stroke="#241A15" stroke-width="1.5"/>
+  <ellipse cx="59" cy="91" rx="2" ry="2.6" fill="#0F0B09"/>
+  <ellipse cx="69" cy="91" rx="2" ry="2.6" fill="#0F0B09"/>
 
   <!-- Eyes -->
-  <g fill="#2C3E52">
-    <ellipse cx="53" cy="58" rx="3.6" ry="4.2"/>
-    <ellipse cx="75" cy="58" rx="3.6" ry="4.2"/>
-  </g>
-  <g fill="#FFFFFF">
-    <circle cx="54.3" cy="56.6" r="1.2"/>
-    <circle cx="76.3" cy="56.6" r="1.2"/>
+  <g fill="#2A2018">
+    <ellipse cx="53" cy="56" rx="3.4" ry="4" fill="#fff"/>
+    <ellipse cx="75" cy="56" rx="3.4" ry="4" fill="#fff"/>
+    <circle cx="53.6" cy="56.6" r="2.3"/>
+    <circle cx="74.4" cy="56.6" r="2.3"/>
   </g>
 </svg>
