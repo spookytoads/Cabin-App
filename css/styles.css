@@ -67,11 +67,17 @@ a { color: var(--blue-light); }
 .btn.block { width: 100%; }
 
 /* ---------- Fields ---------- */
-.field { text-align: left; margin-bottom: 14px; }
+.field { text-align: left; margin-bottom: 14px; min-width: 0; }
 .field label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .field input, .field textarea, .field select {
-  width: 100%; padding: 12px 14px; border: 1.5px solid var(--line);
+  width: 100%; min-width: 0; max-width: 100%; padding: 12px 14px; border: 1.5px solid var(--line);
   border-radius: var(--radius-sm); background: rgba(0,0,0,.22); color: var(--text); outline: none;
+}
+.field input[type="date"], .field input[type="number"] { -webkit-appearance: none; appearance: none; }
+/* Paired columns (Arrive/Leave, Cost/Date, etc.) stack on very narrow phones */
+@media (max-width: 390px) {
+  .modal .row.pair { flex-direction: column; gap: 0 !important; }
+  .modal .row.pair > .field { width: 100%; }
 }
 .field input::placeholder, .field textarea::placeholder { color: var(--muted-2); }
 .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(122,130,102,.28); }

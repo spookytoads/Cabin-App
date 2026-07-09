@@ -462,7 +462,7 @@
     openModal(
       '<div class="modal-head"><h2>' + (editing ? "Edit stay" : "Add a stay") + '</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<div class="field"><label>Who\'s coming?</label><input id="bk-name" list="bk-names" value="' + esc(name) + '" placeholder="Start typing a name…" />' + datalist + "</div>" +
-      '<div class="row" style="gap:12px">' +
+      '<div class="row pair" style="gap:12px">' +
         '<div class="field" style="flex:1"><label>Arrive</label><input id="bk-start" type="date" value="' + esc(s) + '" /></div>' +
         '<div class="field" style="flex:1"><label>Leave</label><input id="bk-end" type="date" value="' + esc(e) + '" /></div>' +
       "</div>" +
@@ -798,11 +798,11 @@
     openModal(
       '<div class="modal-head"><h2>' + (isEdit ? "Edit task" : "New upkeep task") + '</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<div class="field"><label>Task</label><input id="up-title" value="' + esc(r.title || "") + '" placeholder="e.g. Service the furnace" /></div>' +
-      '<div class="row" style="gap:12px">' +
+      '<div class="row pair" style="gap:12px">' +
         '<div class="field" style="flex:1"><label>Last done</label><input id="up-last" type="date" value="' + esc(r.last_done || "") + '" /></div>' +
         '<div class="field" style="flex:1"><label>Done by</label><input id="up-by" value="' + esc(who) + '" placeholder="Name" /></div>' +
       "</div>" +
-      '<div class="row" style="gap:12px">' +
+      '<div class="row pair" style="gap:12px">' +
         '<div class="field" style="flex:1"><label>Repeat every (months)</label><input id="up-int" type="number" inputmode="numeric" min="1" value="' + esc(r.interval_months || "") + '" placeholder="e.g. 12" /></div>' +
         '<div class="field" style="flex:1"><label>Next due</label><input id="up-next" type="date" value="' + esc(r.next_due || "") + '" /></div>' +
       "</div>" +
@@ -834,7 +834,7 @@
     openModal(
       '<div class="modal-head"><h2>Mark done</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<p class="muted small">' + esc(r.title || "") + "</p>" +
-      '<div class="row" style="gap:12px">' +
+      '<div class="row pair" style="gap:12px">' +
         '<div class="field" style="flex:1"><label>Date done</label><input id="dn-date" type="date" value="' + todayYmd() + '" /></div>' +
         '<div class="field" style="flex:1"><label>Done by</label><input id="dn-by" value="' + esc((state.profile && state.profile.full_name) || "") + '" placeholder="Name" /></div>' +
       "</div>" +
@@ -885,7 +885,7 @@
     openModal(
       '<div class="modal-head"><h2>Log maintenance</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<div class="field"><label>What was done?</label><input id="mt-desc" placeholder="e.g. Furnace serviced" /></div>' +
-      '<div class="row" style="gap:12px">' +
+      '<div class="row pair" style="gap:12px">' +
         '<div class="field" style="flex:1"><label>Cost</label><input id="mt-cost" type="number" inputmode="decimal" step="0.01" placeholder="0.00" /></div>' +
         '<div class="field" style="flex:1"><label>Date</label><input id="mt-date" type="date" value="' + todayYmd() + '" /></div>' +
       "</div>" +
