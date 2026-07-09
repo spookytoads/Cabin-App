@@ -118,9 +118,24 @@
     if (window.location.hash && window.location.hash.indexOf("access_token") !== -1) {
       history.replaceState(null, "", window.location.pathname + window.location.search);
     }
+    // Family-only gate: only approved members (or the owner) get in.
+    const { data: isMember } = await sb.rpc("is_member");
+    if (!isMember && !state.isOwner) { renderPending(); return; }
     await loadProfile();
     renderApp();
     await refreshNews(true);
+  }
+
+  function renderPending() {
+    root.innerHTML =
+      '<div class="login-wrap"><div class="login-card">' +
+        '<img class="logo" src="assets/moose.svg" alt="Moose Tracker" />' +
+        "<h1>Almost there!</h1>" +
+        '<p class="tag">This cabin is family-only.</p>' +
+        '<div class="msg ok" style="text-align:left">You\'re signed in as <strong>' + esc(state.user.email) +
+          "</strong>, but that email isn't on the family list yet.<br><br>Ask Malcolm to add you, then come back and refresh.</div>" +
+        '<button class="btn ghost block" data-act="sign-out" style="margin-top:16px">Sign out</button>' +
+      "</div></div>";
   }
 
   async function loadProfile() {
@@ -687,6 +702,7 @@
       '<div class="modal-head"><h2>Your account</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<div class="field"><label>Display name</label><input id="ac-name" value="' + esc((state.profile && state.profile.full_name) || "") + '" placeholder="Your name" /></div>' +
       '<p class="tiny muted">Signed in as ' + esc(state.user.email) + (state.isOwner ? " · Owner" : "") + "</p>" +
+      (state.isOwner ? '<button class="btn blue block" data-act="manage-family" style="margin:6px 0 4px">👪 Manage family list</button>' : "") +
       '<div class="actions"><button class="btn ghost" data-act="sign-out">Sign out</button><button class="btn" data-act="save-name">Save</button></div>'
     );
   }
@@ -698,6 +714,46 @@
     state.profile.full_name = name;
     const who = document.querySelector(".who"); if (who) who.textContent = firstName();
     closeModal(); toast("Saved.");
+  }
+
+  /* ---------------- FAMILY LIST (owner only) ---------------- */
+  async function openFamily() {
+    const { data, error } = await sb.from("members").select("*").order("email");
+    if (error) { toast(error.message, "err"); return; }
+    const list = (data || []).map((m) =>
+      '<div class="card" style="padding:12px"><div class="row">' +
+        '<div style="flex:1;font-size:14px">' + esc(m.email) +
+          (m.email.toLowerCase() === cfg.OWNER_EMAIL.toLowerCase() ? ' <span class="pill done">Owner</span>' : "") + "</div>" +
+        (m.email.toLowerCase() === cfg.OWNER_EMAIL.toLowerCase() ? ""
+          : '<button class="btn ghost sm" data-act="remove-member" data-email="' + esc(m.email) + '">Remove</button>') +
+      "</div></div>"
+    ).join("");
+    openModal(
+      '<div class="modal-head"><h2>👪 Family list</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
+      '<p class="muted small">Only these emails can sign in and see the cabin. Add a family member\'s email and they can log in with a magic link.</p>' +
+      '<div class="row" style="gap:8px;margin-bottom:16px">' +
+        '<input id="fm-email" type="email" inputmode="email" placeholder="name@example.com" style="flex:1;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px" />' +
+        '<button class="btn" data-act="add-member">Add</button></div>' +
+      '<div class="list">' + list + "</div>"
+    );
+    const inp = document.getElementById("fm-email");
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") addMember(); });
+    inp.focus();
+  }
+  async function addMember() {
+    const email = (document.getElementById("fm-email").value || "").trim().toLowerCase();
+    if (!email || email.indexOf("@") === -1) { toast("Enter a valid email.", "err"); return; }
+    const { error } = await sb.from("members").insert({ email, added_by: state.user.id });
+    if (error) {
+      if (error.code === "23505") { toast("That email is already on the list."); }
+      else { toast(error.message, "err"); return; }
+    } else { toast("Added to the family. 👋"); }
+    openFamily();
+  }
+  async function removeMember(email) {
+    const { error } = await sb.from("members").delete().eq("email", email);
+    if (error) { toast(error.message, "err"); return; }
+    toast("Removed."); openFamily();
   }
 
   function errBox(error) {
@@ -717,6 +773,9 @@
       "account": accountModal,
       "sign-out": signOut,
       "save-name": saveName,
+      "manage-family": openFamily,
+      "add-member": addMember,
+      "remove-member": () => removeMember(el.dataset.email),
       "close": closeModal,
       "open-news": openNews,
       "close-news": closeModal,

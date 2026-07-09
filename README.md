@@ -59,17 +59,22 @@ Magic-link emails need to know where to send people back to.
 > in spam. For rock-solid delivery you can add free custom SMTP later under
 > **Authentication → Emails → SMTP Settings** (e.g. Resend, SendGrid, or your Gmail).
 
-### 3. (Recommended) Keep it family-only
+### 3. Add your family (it's family-only by design)
 
-Magic-link login means *anyone who knows the address and enters an email can create an
-account*. To keep it to family only, in Supabase go to
-**Authentication → Sign In / Providers → Email** and consider:
-- Turning **"Allow new users to sign up"** off, then inviting each family member from
-  **Authentication → Users → Invite** (they still log in with the magic link).
+The app has a built-in **family allowlist**, so you don't have to touch Supabase for this.
+Only emails you approve can see or change anything — anyone else who tries to log in gets a
+polite *"Almost there — ask Malcolm to add you"* screen and sees nothing.
 
-Either way, the **Private / Maintenance** tab is always safe: it's restricted to the owner
-email at the database level (Row Level Security), so even a logged-in family member cannot
-read it.
+To manage the list: open the app → tap your name (top right) → **Manage family list** →
+add each family member's email. They can then log in with a magic link. This is enforced at
+the database level (Row Level Security), not just hidden in the app.
+
+The **Private / Maintenance** tab is locked even tighter — restricted to the owner email
+alone, so even an approved family member cannot read it.
+
+*(Optional extra hardening: in Supabase → **Authentication → Sign In / Providers → Email**
+you can also turn off "Allow new users to sign up" so no auth account is created at all for
+outsiders. Not required — the allowlist already blocks access to your data.)*
 
 ---
 
