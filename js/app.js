@@ -83,7 +83,9 @@
 
   // Booking colors are derived from the NAME on the booking, so the same person
   // (or couple) always gets the same color no matter who logs the stay in.
-  const PALETTE = ["#C0533B","#47563F","#2F5480","#6D82A8","#6F7D5A","#A06F3E","#9D5E52","#3F7168","#7C6699","#8A8F4A"];
+  // Reds / oranges / blues / purples only — no green (greens vanish on the
+  // green calendar background).
+  const PALETTE = ["#C0533B","#2F5480","#7C5A99","#CE7A32","#4A78B0","#A34E70","#B5442E","#5B6BB0","#BE7A2E","#8A5AA8","#3E6EA5","#B85C8A","#D2642F","#6E5AA0"];
   function hashStr(s) {
     let h = 0; s = (s || "").trim().toLowerCase();
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
@@ -365,11 +367,12 @@
       const k = ymd(new Date(year, month, day));
       const b = byDay[k];
       const cls = ["cal-cell"];
-      if (k === today) cls.push("today");
       if (b) cls.push("booked");
       else if (k < today) cls.push("past");
-      const style = b ? ' style="background:' + bookingColor(b) + ';border-color:' + bookingColor(b) + '"' : "";
-      cells += '<button class="' + cls.join(" ") + '"' + style + ' data-day="' + k + '">' + day + "</button>";
+      else cls.push("open");
+      if (k === today) cls.push("today");
+      const dot = b ? '<span class="cdot" style="background:' + bookingColor(b) + '"></span>' : "";
+      cells += '<button class="' + cls.join(" ") + '" data-day="' + k + '"><span class="d">' + day + "</span>" + dot + "</button>";
     }
 
     const upcoming = bookings.filter((b) => b.end_date >= today);
@@ -415,9 +418,13 @@
   function bookingForm(prefillStart) {
     const name = state.profile && state.profile.full_name ? state.profile.full_name : "";
     const s = prefillStart || todayYmd();
+    // Suggest existing household names so couples book under one consistent
+    // name (and therefore one consistent color) instead of retyping variations.
+    const known = [...new Set((state._bookings || []).map((b) => (b.guest_name || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const datalist = '<datalist id="bk-names">' + known.map((n) => '<option value="' + esc(n) + '"></option>').join("") + "</datalist>";
     openModal(
       '<div class="modal-head"><h2>Add a stay</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
-      '<div class="field"><label>Who\'s coming?</label><input id="bk-name" value="' + esc(name) + '" placeholder="e.g. The Johnsons" /></div>' +
+      '<div class="field"><label>Who\'s coming?</label><input id="bk-name" list="bk-names" value="' + esc(name) + '" placeholder="Start typing a name…" />' + datalist + "</div>" +
       '<div class="row" style="gap:12px">' +
         '<div class="field" style="flex:1"><label>Arrive</label><input id="bk-start" type="date" value="' + esc(s) + '" /></div>' +
         '<div class="field" style="flex:1"><label>Leave</label><input id="bk-end" type="date" value="' + esc(s) + '" /></div>' +
