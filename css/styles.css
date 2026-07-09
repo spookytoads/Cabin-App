@@ -219,6 +219,7 @@ a { color: var(--blue-light); }
 .news-item h3 { margin-bottom: 2px; }
 .news-item .when { font-size: 12px; color: var(--muted); }
 .news-item .body { white-space: pre-wrap; margin-top: 6px; color: var(--text); }
+.news-img { width: 100%; max-height: 340px; object-fit: cover; border-radius: 14px; margin-top: 10px; display: block; border: 1px solid var(--card-bd); }
 
 /* Procedures — segmented content */
 .proc { font-size: 15px; line-height: 1.55; color: var(--text); }

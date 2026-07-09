@@ -423,44 +423,58 @@
         : '<div class="empty"><div class="big">🌲</div>No stays booked yet.<br>Tap the + to add yours.</div>');
   }
 
+  function canManageBooking(b) {
+    const myName = (state.profile && state.profile.full_name || "").trim().toLowerCase();
+    const mine = !!myName && (b.guest_name || "").trim().toLowerCase() === myName;
+    return state.isOwner || b.user_id === state.user.id || mine;
+  }
   function bookingCard(b) {
     const myName = (state.profile && state.profile.full_name || "").trim().toLowerCase();
     const mine = !!myName && (b.guest_name || "").trim().toLowerCase() === myName;
-    const canDel = b.user_id === state.user.id || state.isOwner;
+    const canManage = canManageBooking(b);
     const col = bookingColor(b);
     return '<div class="card" style="border-left:5px solid ' + col + '">' +
-      '<div class="row"><div style="flex:1">' +
+      '<div style="flex:1">' +
         '<h3><span class="color-chip" style="background:' + col + '"></span>' + esc(b.guest_name) + (mine ? ' <span class="pill done">You</span>' : "") + "</h3>" +
         '<div class="small muted">' + esc(fmtRange(b.start_date, b.end_date)) + " · " + nights(b.start_date, b.end_date) + " night" + (nights(b.start_date, b.end_date) === 1 ? "" : "s") + "</div>" +
         (b.notes ? '<div class="small" style="margin-top:4px">' + esc(b.notes) + "</div>" : "") +
       "</div>" +
-      (canDel ? '<button class="btn ghost sm" data-act="del-booking" data-id="' + b.id + '">Cancel</button>' : "") +
-      "</div></div>";
+      (canManage
+        ? '<div class="row" style="margin-top:12px;gap:8px">' +
+            '<button class="btn ghost sm" data-act="edit-booking" data-id="' + b.id + '">Edit dates</button>' +
+            '<button class="btn ghost sm" data-act="del-booking" data-id="' + b.id + '">Cancel</button>' +
+          "</div>"
+        : "") +
+      "</div>";
   }
 
-  function bookingForm(prefillStart) {
-    const name = state.profile && state.profile.full_name ? state.profile.full_name : "";
-    const s = prefillStart || todayYmd();
+  function bookingForm(arg) {
+    const editing = arg && typeof arg === "object" ? arg : null;
+    const prefillStart = typeof arg === "string" ? arg : null;
+    const name = editing ? editing.guest_name : (state.profile && state.profile.full_name || "");
+    const s = editing ? editing.start_date : (prefillStart || todayYmd());
+    const e = editing ? editing.end_date : s;
+    const notes = editing ? (editing.notes || "") : "";
     // Suggest existing household names so couples book under one consistent
     // name (and therefore one consistent color) instead of retyping variations.
     const known = [...new Set((state._bookings || []).map((b) => (b.guest_name || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const datalist = '<datalist id="bk-names">' + known.map((n) => '<option value="' + esc(n) + '"></option>').join("") + "</datalist>";
     openModal(
-      '<div class="modal-head"><h2>Add a stay</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
+      '<div class="modal-head"><h2>' + (editing ? "Edit stay" : "Add a stay") + '</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
       '<div class="field"><label>Who\'s coming?</label><input id="bk-name" list="bk-names" value="' + esc(name) + '" placeholder="Start typing a name…" />' + datalist + "</div>" +
       '<div class="row" style="gap:12px">' +
         '<div class="field" style="flex:1"><label>Arrive</label><input id="bk-start" type="date" value="' + esc(s) + '" /></div>' +
-        '<div class="field" style="flex:1"><label>Leave</label><input id="bk-end" type="date" value="' + esc(s) + '" /></div>' +
+        '<div class="field" style="flex:1"><label>Leave</label><input id="bk-end" type="date" value="' + esc(e) + '" /></div>' +
       "</div>" +
-      '<div class="field"><label>Notes (optional)</label><textarea id="bk-notes" placeholder="Bringing the dog, arriving late, etc."></textarea></div>' +
-      '<div class="actions"><button class="btn ghost" data-act="close">Cancel</button><button class="btn" data-act="save-booking">Save stay</button></div>'
+      '<div class="field"><label>Notes (optional)</label><textarea id="bk-notes" placeholder="Bringing the dog, arriving late, etc.">' + esc(notes) + "</textarea></div>" +
+      '<div class="actions"><button class="btn ghost" data-act="close">Cancel</button><button class="btn" data-act="save-booking" data-id="' + (editing ? editing.id : "") + '">' + (editing ? "Save changes" : "Save stay") + "</button></div>"
     );
     const start = document.getElementById("bk-start");
     const end = document.getElementById("bk-end");
     start.addEventListener("change", () => { if (end.value < start.value) end.value = start.value; });
   }
 
-  async function saveBooking() {
+  async function saveBooking(id) {
     const name = document.getElementById("bk-name").value.trim();
     const start = document.getElementById("bk-start").value;
     const end = document.getElementById("bk-end").value;
@@ -469,28 +483,31 @@
     if (!start || !end) { toast("Please pick both dates.", "err"); return; }
     if (end < start) { toast("The leave date can't be before the arrive date.", "err"); return; }
 
-    // Friendly conflict check first.
-    const { data: clash } = await sb.from("bookings").select("*")
-      .lte("start_date", end).gte("end_date", start).order("start_date").limit(1);
+    // Friendly conflict check first (ignore the stay being edited).
+    let cq = sb.from("bookings").select("*").lte("start_date", end).gte("end_date", start);
+    if (id) cq = cq.neq("id", id);
+    const { data: clash } = await cq.order("start_date").limit(1);
     if (clash && clash.length) { showConflict(clash[0]); return; }
 
     const btn = document.querySelector('[data-act="save-booking"]');
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
-    const { error } = await sb.from("bookings").insert({
-      user_id: state.user.id, guest_name: name, start_date: start, end_date: end, notes: notes || null,
-    });
+    const payload = { guest_name: name, start_date: start, end_date: end, notes: notes || null };
+    const { error } = id
+      ? await sb.from("bookings").update(payload).eq("id", id)
+      : await sb.from("bookings").insert({ user_id: state.user.id, ...payload });
     if (error) {
       if (error.code === "23P01" || /overlap|exclude/i.test(error.message)) {
-        // Someone booked in the split-second between check and save.
-        const { data: c2 } = await sb.from("bookings").select("*").lte("start_date", end).gte("end_date", start).limit(1);
+        let c2q = sb.from("bookings").select("*").lte("start_date", end).gte("end_date", start);
+        if (id) c2q = c2q.neq("id", id);
+        const { data: c2 } = await c2q.limit(1);
         if (c2 && c2.length) { showConflict(c2[0]); return; }
       }
       toast(error.message, "err");
-      if (btn) { btn.disabled = false; btn.textContent = "Save stay"; }
+      if (btn) { btn.disabled = false; btn.textContent = id ? "Save changes" : "Save stay"; }
       return;
     }
     closeModal();
-    toast("Stay booked! 🎉");
+    toast(id ? "Dates updated. ✓" : "Stay booked! 🎉");
     viewCalendar();
   }
 
@@ -916,9 +933,12 @@
       '<div class="actions"><button class="btn" data-act="dismiss-news">Got it</button></div>'
     );
   }
+  function newsImg(n) {
+    return n.image_url ? '<img class="news-img" src="' + esc(n.image_url) + '" alt="" loading="lazy" />' : "";
+  }
   function newsItem(n) {
     return '<div class="news-item"><h3>' + esc(n.title) + '</h3><div class="when">' + esc(timeAgo(n.created_at)) +
-      '</div><div class="body">' + esc(n.body) + "</div></div>";
+      '</div><div class="body">' + esc(n.body) + "</div>" + newsImg(n) + "</div>";
   }
 
   async function markNewsSeen() {
@@ -941,7 +961,7 @@
   function newsItemOwner(n) {
     return '<div class="news-item"><div class="row"><h3 style="flex:1">' + esc(n.title) + "</h3>" +
       (state.isOwner ? '<button class="x" data-act="del-news" data-id="' + n.id + '" title="Delete">🗑</button>' : "") +
-      '</div><div class="when">' + esc(timeAgo(n.created_at)) + '</div><div class="body">' + esc(n.body) + "</div></div>";
+      '</div><div class="when">' + esc(timeAgo(n.created_at)) + '</div><div class="body">' + esc(n.body) + "</div>" + newsImg(n) + "</div>";
   }
   function newsForm() {
     openModal(
@@ -949,6 +969,7 @@
       '<p class="muted small">Everyone will get a pop-up next time they open Moose Tracker.</p>' +
       '<div class="field"><label>Headline</label><input id="nw-title" placeholder="e.g. New Wi-Fi password" /></div>' +
       '<div class="field"><label>Details</label><textarea id="nw-body" placeholder="What changed and what people need to know"></textarea></div>' +
+      '<div class="field"><label>Photo (optional)</label><input id="nw-img" type="file" accept="image/*" /></div>' +
       '<div class="actions"><button class="btn ghost" data-act="close">Cancel</button><button class="btn red" data-act="save-news">Post it</button></div>'
     );
   }
@@ -956,8 +977,24 @@
     const title = document.getElementById("nw-title").value.trim();
     const body = document.getElementById("nw-body").value.trim();
     if (!title || !body) { toast("Add a headline and details.", "err"); return; }
-    const { error } = await sb.from("news").insert({ title, body, created_by: state.user.id });
-    if (error) { toast(error.message, "err"); return; }
+    const btn = document.querySelector('[data-act="save-news"]');
+    if (btn) { btn.disabled = true; btn.textContent = "Posting…"; }
+    let image_url = null;
+    const fileInput = document.getElementById("nw-img");
+    const file = fileInput && fileInput.files && fileInput.files[0];
+    if (file) {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const path = Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + (ext || "jpg");
+      const up = await sb.storage.from("news-images").upload(path, file, { cacheControl: "3600", upsert: false });
+      if (up.error) {
+        toast("Image upload failed: " + up.error.message, "err");
+        if (btn) { btn.disabled = false; btn.textContent = "Post it"; }
+        return;
+      }
+      image_url = sb.storage.from("news-images").getPublicUrl(path).data.publicUrl;
+    }
+    const { error } = await sb.from("news").insert({ title, body, image_url, created_by: state.user.id });
+    if (error) { toast(error.message, "err"); if (btn) { btn.disabled = false; btn.textContent = "Post it"; } return; }
     // Mark as seen for the poster so they don't get their own popup.
     await sb.from("profiles").update({ news_seen_at: new Date().toISOString() }).eq("id", state.user.id);
     state.profile.news_seen_at = new Date().toISOString();
@@ -1074,7 +1111,8 @@
       "cal-next": () => { state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() + 1, 1); drawCalendar(); },
       "cal-today": () => { state.calMonth = startOfMonth(new Date()); drawCalendar(); },
       "add-booking": () => bookingForm(),
-      "save-booking": saveBooking,
+      "save-booking": () => saveBooking(el.dataset.id || null),
+      "edit-booking": () => { const bk = (state._bookings || []).find((x) => x.id === id); if (bk) bookingForm(bk); },
       "del-booking": () => confirmDialog("Cancel this stay?", () => delBooking(id), "Cancel stay"),
       // work
       "add-work": workForm,
@@ -1113,10 +1151,12 @@
     if (cell.classList.contains("booked")) {
       const b = (state._bookings || []).find((x) => x.start_date <= day && x.end_date >= day);
       if (b) openModal(
-        '<div class="modal-head"><h2>' + esc(b.guest_name) + '</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
-        '<p>' + esc(fmtRange(b.start_date, b.end_date)) + "</p>" +
+        '<div class="modal-head"><h2><span class="color-chip" style="background:' + bookingColor(b) + '"></span>' + esc(b.guest_name) + '</h2><div class="spacer"></div><button class="x" data-act="close">×</button></div>' +
+        '<p>' + esc(fmtRange(b.start_date, b.end_date)) + " · " + nights(b.start_date, b.end_date) + " nights</p>" +
         (b.notes ? '<p class="muted">' + esc(b.notes) + "</p>" : "") +
-        '<div class="actions"><button class="btn" data-act="close">Close</button></div>');
+        (canManageBooking(b)
+          ? '<div class="actions"><button class="btn ghost" data-act="edit-booking" data-id="' + b.id + '">Edit dates</button><button class="btn" data-act="close">Close</button></div>'
+          : '<div class="actions"><button class="btn" data-act="close">Close</button></div>'));
     } else {
       bookingForm(day);
     }
