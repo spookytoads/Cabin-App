@@ -907,7 +907,6 @@
     const body = privBody(); if (!body) return;
     if (error) { body.innerHTML = errBox(error); return; }
     const rows = data || [];
-    const grand = rows.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
     // Group by year of service_date (undated last).
     const groups = {};
     rows.forEach((r) => { const y = r.service_date ? r.service_date.slice(0, 4) : "Undated"; (groups[y] = groups[y] || []).push(r); });
@@ -916,7 +915,6 @@
     if (!state._costsOpen) state._costsOpen = {};
     const isOpen = (y) => (y in state._costsOpen ? state._costsOpen[y] : y === curYear);
     body.innerHTML =
-      '<div class="total-bar"><div><div class="lbl">All-time total</div></div><div class="amt">' + money(grand) + "</div></div>" +
       (rows.length
         ? years.map((y) => {
             const yr = groups[y];
