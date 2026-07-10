@@ -108,7 +108,10 @@ a { color: var(--blue-light); }
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 12px;
-  padding: calc(14px + var(--safe-top)) 18px 14px; background: var(--bg); color: var(--white);
+  /* env() used directly (Safari can fail to resolve it via a CSS variable) */
+  padding: 14px 18px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  background: var(--bg); color: var(--white);
   border-bottom: 1px solid var(--line);
 }
 .topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--white); }
