@@ -282,6 +282,7 @@
     input.focus();
   }
 
+  let pendingEmail = "";
   async function sendLink() {
     const input = document.getElementById("email");
     const email = (input.value || "").trim();
@@ -298,10 +299,31 @@
         '<div class="msg err">' + esc(error.message) + "</div>");
       return;
     }
+    pendingEmail = email;
     document.getElementById("login-body").innerHTML =
-      '<div class="msg ok"><strong>Check your email!</strong><br>We sent a login link to ' + esc(email) +
-      ". Tap it on this device to jump in.</div>" +
-      '<p class="note">Didn\'t get it? Check spam, or <a href="#" data-act="reset-login">try again</a>.</p>';
+      '<div class="msg ok"><strong>Check your email.</strong><br>We sent a login link <em>and</em> a 6-digit code to ' + esc(email) + ".</div>" +
+      '<div class="field" style="margin-top:16px"><label>Enter the code from the email</label>' +
+        '<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" style="letter-spacing:.3em;font-size:20px;text-align:center" /></div>' +
+      '<button class="btn block" data-act="verify-code">Log me in</button>' +
+      '<p class="note">📲 Opened Moose Tracker from your home screen? Type the <strong>code</strong> here — the emailed link opens your browser instead of the app.</p>' +
+      '<p class="note">Didn\'t get it? Check spam, or <a href="#" data-act="reset-login">try a different email</a>.</p>';
+    const code = document.getElementById("code");
+    code.addEventListener("keydown", (e) => { if (e.key === "Enter") verifyCode(); });
+    code.focus();
+  }
+
+  async function verifyCode() {
+    const code = (document.getElementById("code").value || "").replace(/\D/g, "");
+    if (code.length < 6) { toast("Enter the 6-digit code from your email.", "err"); return; }
+    const btn = document.querySelector('[data-act="verify-code"]');
+    if (btn) { btn.disabled = true; btn.textContent = "Logging in…"; }
+    const { error } = await sb.auth.verifyOtp({ email: pendingEmail, token: code, type: "email" });
+    if (error) {
+      toast(error.message, "err");
+      if (btn) { btn.disabled = false; btn.textContent = "Log me in"; }
+      return;
+    }
+    // onAuthStateChange (SIGNED_IN) takes over from here — in THIS app context.
   }
 
   async function signOut() { await sb.auth.signOut(); }
@@ -1113,6 +1135,7 @@
     const act = el.dataset.act, id = el.dataset.id;
     const A = {
       "send-link": sendLink,
+      "verify-code": verifyCode,
       "reset-login": (ev) => { ev.preventDefault(); renderLogin(); },
       "account": accountModal,
       "sign-out": signOut,
