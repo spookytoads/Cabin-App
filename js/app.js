@@ -901,18 +901,45 @@
     if (error) { toast(error.message, "err"); return; } toast("Deleted."); viewUpkeep();
   }
 
-  /* ---- Costs log ---- */
+  /* ---- Costs log (grouped by year, collapsible) ---- */
   async function viewCosts() {
     const { data, error } = await sb.from("maintenance").select("*").order("service_date", { ascending: false, nullsFirst: false });
     const body = privBody(); if (!body) return;
     if (error) { body.innerHTML = errBox(error); return; }
     const rows = data || [];
-    const total = rows.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
+    const grand = rows.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
+    // Group by year of service_date (undated last).
+    const groups = {};
+    rows.forEach((r) => { const y = r.service_date ? r.service_date.slice(0, 4) : "Undated"; (groups[y] = groups[y] || []).push(r); });
+    const years = Object.keys(groups).sort((a, b) => (a === "Undated" ? 1 : b === "Undated" ? -1 : b.localeCompare(a)));
+    const curYear = String(new Date().getFullYear());
+    if (!state._costsOpen) state._costsOpen = {};
+    const isOpen = (y) => (y in state._costsOpen ? state._costsOpen[y] : y === curYear);
     body.innerHTML =
-      '<div class="total-bar"><div><div class="lbl">Total logged</div></div><div class="amt">' + money(total) + "</div></div>" +
-      (rows.length ? '<div class="list">' + rows.map(maintCard).join("") + "</div>"
+      '<div class="total-bar"><div><div class="lbl">All-time total</div></div><div class="amt">' + money(grand) + "</div></div>" +
+      (rows.length
+        ? years.map((y) => {
+            const yr = groups[y];
+            const yt = yr.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+            const open = isOpen(y);
+            return '<div class="year-group">' +
+              '<button class="year-head" data-act="toggle-year" data-year="' + esc(y) + '">' +
+                '<span class="yr-caret' + (open ? " open" : "") + '">▸</span>' +
+                '<span class="yr-label">' + esc(y) + '</span>' +
+                '<span class="yr-count">' + yr.length + " item" + (yr.length === 1 ? "" : "s") + "</span>" +
+                '<span class="yr-total">' + money(yt) + "</span>" +
+              "</button>" +
+              '<div class="year-body' + (open ? "" : " hidden") + '">' + yr.map(maintCard).join("") + "</div>" +
+            "</div>";
+          }).join("")
         : '<div class="empty"><div class="big">🧾</div>No costs logged yet.<br>Tap + to add a repair or bill.</div>');
     fab("add-maint", "Add cost");
+  }
+  function toggleYear(y) {
+    if (!state._costsOpen) state._costsOpen = {};
+    const cur = (y in state._costsOpen) ? state._costsOpen[y] : (y === String(new Date().getFullYear()));
+    state._costsOpen[y] = !cur;
+    viewCosts();
   }
   function maintCard(r) {
     return '<div class="card"><div class="row" style="align-items:flex-start">' +
@@ -1176,6 +1203,7 @@
       "add-maint": maintForm,
       "save-maint": saveMaint,
       "del-maint": () => confirmDialog("Delete this record?", () => delMaint(id)),
+      "toggle-year": () => toggleYear(el.dataset.year),
       // private: sub-tabs + upkeep schedule
       "priv-tab": () => setPrivTab(el.dataset.pt),
       "add-upkeep": () => upkeepForm(),
