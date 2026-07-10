@@ -301,9 +301,9 @@
     }
     pendingEmail = email;
     document.getElementById("login-body").innerHTML =
-      '<div class="msg ok"><strong>Check your email.</strong><br>We sent a login link <em>and</em> a 6-digit code to ' + esc(email) + ".</div>" +
+      '<div class="msg ok"><strong>Check your email.</strong><br>We sent a login link <em>and</em> a code to ' + esc(email) + ".</div>" +
       '<div class="field" style="margin-top:16px"><label>Enter the code from the email</label>' +
-        '<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" style="letter-spacing:.3em;font-size:20px;text-align:center" /></div>' +
+        '<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Enter code" style="letter-spacing:.25em;font-size:20px;text-align:center" /></div>' +
       '<button class="btn block" data-act="verify-code">Log me in</button>' +
       '<p class="note">📲 Opened Moose Tracker from your home screen? Type the <strong>code</strong> here — the emailed link opens your browser instead of the app.</p>' +
       '<p class="note">Didn\'t get it? Check spam, or <a href="#" data-act="reset-login">try a different email</a>.</p>';
@@ -314,7 +314,7 @@
 
   async function verifyCode() {
     const code = (document.getElementById("code").value || "").replace(/\D/g, "");
-    if (code.length < 6) { toast("Enter the 6-digit code from your email.", "err"); return; }
+    if (code.length < 6) { toast("Enter the code from your email.", "err"); return; }
     const btn = document.querySelector('[data-act="verify-code"]');
     if (btn) { btn.disabled = true; btn.textContent = "Logging in…"; }
     const { error } = await sb.auth.verifyOtp({ email: pendingEmail, token: code, type: "email" });
